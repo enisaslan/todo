@@ -11,17 +11,55 @@
 #define RX_BUFFER_SIZE  4096
 #define CLIENT_KEY_SIZE 256
 
-int send_ws_message(int socket, const char* data, int data_len)
+typedef enum session_state_t
+{
+    SESSION_STATE_CONNECT = 10, 
+    SESSION_STATE_WS,
+    SESSION_STATE_LOGIN,
+    SESSION_STATE_HOME,
+    SESSION_STATE_IDLE
+}session_state_t;
+
+typedef struct session_t
+{
+    int id;
+    int socket_id; 
+    session_state_t state;
+}session_t;
+
+/**
+ * @brief Session creation service.
+ */
+session_t* 
+create_session(int socketID)
+{   
+    static int id = 0;
+    session_t* session; 
+    session = malloc(sizeof(session_t));
+    
+    if(session)
+    {
+        session->id = id;
+        session->socket_id = socketID;
+        session->state = SESSION_STATE_CONNECT;
+        id++;
+    }
+    
+    return session;
+}
+
+int 
+send_ws_message(int socketID, 
+                const char* data, 
+                int data_len)
 {
     unsigned char ws_frame[512];
-    //const char *msg = "{\r\n\"state\":\"login\"\r\n}";
-    //size_t msg_len = strlen(msg);
 
-    ws_frame[0] = 0x81;  // FIN=1, text frame
-    ws_frame[1] = data_len; // uzunluk (125'ten küçük olduğu için tek byte yeterli)
+    ws_frame[0] = 0x81;  /** FIN=1, text frame */
+    ws_frame[1] = data_len;
     memcpy(&ws_frame[2], data, data_len);
 
-    return send(socket, ws_frame, data_len + 2, 0);
+    return send(socketID, ws_frame, data_len + 2, 0);
 }
 
 void* clientThread(void *arg)
@@ -39,83 +77,112 @@ void* clientThread(void *arg)
         return NULL;
     }
 
-    printf("Running Task %d\r\n", socketID);
+    /** Create a connection session */
+    session_t* session = create_session(socketID);
+    if(NULL == session)
+    {
+        printf(" - Session Creation Error !!!\r\n");
+        return NULL;
+    }
+
+    /** Set session state as web-socket auth */
+    session->state = SESSION_STATE_WS;
+
+    printf("Running Session ID %d - Socket ID %d \r\n", session->id, session->socket_id);
 
     while(1)
     {
-        /* sleep thread */
+        /** sleep thread */
         usleep(1000);
         
-
-        // Clear the memory
+        /** Clear the memory */
         memset(buffer, 0, RX_BUFFER_SIZE);
 
-        // Read the available data
-        ret_size = read(socketID, buffer, RX_BUFFER_SIZE);
+        /** Read the available data */
+        ret_size = read(session->socket_id, buffer, RX_BUFFER_SIZE);
         if(ret_size > 0)
         {
-            // "Sec-WebSocket-Key" bul
-            key_addr = strstr(buffer, "Sec-WebSocket-Key: ");
-            if(NULL != key_addr)
+            if(session->state == SESSION_STATE_WS)
             {
-                memset(client_key, 0, CLIENT_KEY_SIZE);
-
-                key_addr += strlen("Sec-WebSocket-Key: ");
-                sscanf(key_addr, "%s", client_key);
-
-                printf("Client %d - Key: %s \r\n", socketID, client_key);
-
-                // GUID ile birleştir - Bu GUID RFC6455 ve RFC4122 de tanimlanmiştir
-                char to_hash[256];
-                snprintf(to_hash, sizeof(to_hash), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", client_key);
-
-                // SHA1 hesapla
-                unsigned char sha1_result[SHA_DIGEST_LENGTH];
-                SHA1((unsigned char*)to_hash, strlen(to_hash), sha1_result);
-                
-                unsigned char encoded_data[CLIENT_KEY_SIZE];
-                memset(encoded_data, 0, CLIENT_KEY_SIZE);
-
-                // Base64 encode
-                EVP_EncodeBlock((unsigned char*)&encoded_data, (const unsigned char*)&sha1_result, SHA_DIGEST_LENGTH);
-
-                printf("Base64 Encoded Data: %s \r\n", encoded_data);
-
-                // Handshake cevabı gönder
-                char response[2*CLIENT_KEY_SIZE];
-                memset(response, 0, 2*CLIENT_KEY_SIZE);
-
-                snprintf(response, sizeof(response),
-                        "HTTP/1.1 101 Switching Protocols\r\n"
-                        "Upgrade: websocket\r\n"
-                        "Connection: Upgrade\r\n"
-                        "Sec-WebSocket-Accept: %s\r\n\r\n",
-                        encoded_data);
-
-                ret = send(socketID, response, strlen(response), 0);
-                if(ret > 0)
+                /** Find the "Sec-WebSocket-Key" */ 
+                key_addr = strstr(buffer, "Sec-WebSocket-Key: ");
+                if(NULL != key_addr)
                 {
-                    printf("Total %d Bytes Handshake data sended...\r\n", ret);
+                    memset(client_key, 0, CLIENT_KEY_SIZE);
+
+                    key_addr += strlen("Sec-WebSocket-Key: ");
+                    sscanf(key_addr, "%s", client_key);
+
+                    printf("Client %d - Key: %s \r\n", session->socket_id, client_key);
+
+                    /** This GUID defined in RFC6455 ve RFC4122 documents */
+                    char to_hash[256];
+                    snprintf(to_hash, sizeof(to_hash), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", client_key);
+
+                    /** Calculate SHA1 */
+                    unsigned char sha1_result[SHA_DIGEST_LENGTH];
+                    SHA1((unsigned char*)to_hash, strlen(to_hash), sha1_result);
+                    
+                    unsigned char encoded_data[CLIENT_KEY_SIZE];
+                    memset(encoded_data, 0, CLIENT_KEY_SIZE);
+
+                    /** Base64 encode */
+                    EVP_EncodeBlock((unsigned char*)&encoded_data, (const unsigned char*)&sha1_result, SHA_DIGEST_LENGTH);
+
+                    printf("Base64 Encoded Data: %s \r\n", encoded_data);
+
+                    /** Handshake */
+                    char response[2*CLIENT_KEY_SIZE];
+                    memset(response, 0, 2*CLIENT_KEY_SIZE);
+
+                    snprintf(response, sizeof(response),
+                            "HTTP/1.1 101 Switching Protocols\r\n"
+                            "Upgrade: websocket\r\n"
+                            "Connection: Upgrade\r\n"
+                            "Sec-WebSocket-Accept: %s\r\n\r\n",
+                            encoded_data);
+
+                    ret = send(session->socket_id, response, strlen(response), 0);
+                    if(ret > 0)
+                    {
+                        printf("Total %d Bytes Handshake data sended...\r\n", ret);
+                    }
+
+                    session->state = SESSION_STATE_IDLE;
                 }
-                
+                else 
+                {
+                    printf("Other Data: %s\r\n", buffer);
+                }
+            }
+            else if(session->state == SESSION_STATE_LOGIN)
+            {
+                /** Send login page create command */
                 const char *msg = "{\r\n\"state\":\"login\"\r\n}";
                 int msg_len = strlen(msg);
-                ret = send_ws_message(socketID, msg, msg_len);
+                ret = send_ws_message(session->socket_id, msg, msg_len);
                 if(ret > 0)
                 {
                     printf("Total %d Bytes WS data sended...\r\n", ret);
                 }
-
             }
-            else 
+            else if(session->state == SESSION_STATE_HOME)
             {
-                printf("Other Data: %s\r\n", buffer);
+                
             }
+            else if(session->state == SESSION_STATE_IDLE)
+            {
+             
+            }
+
         }
         else if (ret_size == 0) 
         {
-            printf(" Client %d Dead !!!\r\n", socketID);
-            close(socketID);
+            printf(" Client %d Dead !!!\r\n", session->socket_id);
+            close(session->socket_id);
+
+            free(session);
+
             return NULL;
         }
 
@@ -200,99 +267,4 @@ main(void)
     return 0;
 }
 
-/*
-int main() 
-{
-    int server_fd, client_fd;
-    struct sockaddr_in address;
-    char buffer[4096] = {0};
-    int opt = 1;
-    int ret;
-    int addrlen = sizeof(address);
 
-    char encoded_data[512];
-
-    // Socket oluştur
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(SERVER_PORT);
-
-    ret = bind(server_fd, (struct sockaddr*)&address, sizeof(address));
-    if(ret < 0)
-    {
-        printf("Bind Error %d\r\n", ret);
-    }
-
-    memset(encoded_data, 0, sizeof(encoded_data));
-
-    ret = listen(server_fd, 3);
-    if(ret < 0)
-    {
-        printf("Listen Error %d\r\n", ret);
-    }
-    
-    printf("WebSocket Server Listen on Port %d ...\n", SERVER_PORT);
-
-    client_fd = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
-
-    read(client_fd, buffer, 4096);
-    printf("Handshake Request:\n%s\n", buffer);
-
-    // "Sec-WebSocket-Key" bul
-    char *key = strstr(buffer, "Sec-WebSocket-Key: ");
-    key += strlen("Sec-WebSocket-Key: ");
-    char client_key[256];
-    sscanf(key, "%s", client_key);
-
-    // GUID ile birleştir - Bu GUID RFC6455 ve RFC4122 de tanimlanmiştir
-    char to_hash[256];
-    snprintf(to_hash, sizeof(to_hash), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", client_key);
-
-    // SHA1 hesapla
-    unsigned char sha1_result[SHA_DIGEST_LENGTH];
-    SHA1((unsigned char*)to_hash, strlen(to_hash), sha1_result);
-
-    // Base64 encode
-    EVP_EncodeBlock((unsigned char*)&encoded_data, (const unsigned char*)&sha1_result, SHA_DIGEST_LENGTH);
-
-    printf("Base64 Encoded Data: %s \r\n", encoded_data);
-
-    // Handshake cevabı gönder
-    char response[512];
-    snprintf(response, sizeof(response),
-             "HTTP/1.1 101 Switching Protocols\r\n"
-             "Upgrade: websocket\r\n"
-             "Connection: Upgrade\r\n"
-             "Sec-WebSocket-Accept: %s\r\n\r\n",
-             encoded_data);
-
-    ret = send(client_fd, response, strlen(response), 0);
-    if(ret > 0)
-    {
-        printf("Total %d Bytes Handshake data send...\r\n", ret);
-    }
-
-    printf("Handshake Completed ! - Test Data Sending...\n");
-
-    // ⚠️ Buradan sonra gönderilecek olan verileri WebSocket frame formatına göre düzenlemek gerekir.
-    // Browser tarafı gelen paketi direk olarak çözecektir.
-
-    unsigned char ws_frame[200];
-    const char *msg = "{\r\n\"state\":\"login\"\r\n}";
-    size_t msg_len = strlen(msg);
-
-    ws_frame[0] = 0x81;  // FIN=1, text frame
-    ws_frame[1] = msg_len; // uzunluk (125'ten küçük olduğu için tek byte yeterli)
-    memcpy(&ws_frame[2], msg, msg_len);
-
-    send(client_fd, ws_frame, msg_len + 2, 0);
-
-    close(client_fd);
-    close(server_fd);
-    return 0;
-}
-
-*/
