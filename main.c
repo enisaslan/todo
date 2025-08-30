@@ -20,12 +20,16 @@ typedef enum session_state_t
     SESSION_STATE_IDLE
 }session_state_t;
 
+
+typedef int (*session_service_fn_t)(void*); 
 typedef struct session_t
 {
     int id;
     int socket_id; 
     session_state_t state;
+    session_service_fn_t service;
 }session_t;
+
 
 /**
  * @brief Session creation service.
@@ -37,7 +41,7 @@ create_session(int socketID)
     session_t* session; 
     session = malloc(sizeof(session_t));
     
-    if(session)
+    if(NULL != session)
     {
         session->id = id;
         session->socket_id = socketID;
@@ -62,7 +66,8 @@ send_ws_message(int socketID,
     return send(socketID, ws_frame, data_len + 2, 0);
 }
 
-void* clientThread(void *arg)
+void* 
+clientThread(void *arg)
 {
     int ret;
     int socketID = *((int *)arg);
@@ -92,9 +97,7 @@ void* clientThread(void *arg)
 
     while(1)
     {
-        /** sleep thread */
-        usleep(1000);
-        
+
         /** Clear the memory */
         memset(buffer, 0, RX_BUFFER_SIZE);
 
@@ -185,6 +188,10 @@ void* clientThread(void *arg)
 
             return NULL;
         }
+
+
+        /** sleep thread */
+        usleep(1000);
 
     }
 }
