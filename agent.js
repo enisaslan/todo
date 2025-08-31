@@ -41,14 +41,16 @@ function create_websocket ()
     const socket = new WebSocket(server_address);
 
     socket.onopen = () => {
-        console.log("WS Connection Created..");
-        socket.send("Hello I'm Browser");
+        console.log("WS Connection Created.. ACK sending..");
+        socket.send("{ws:ack}\0");
     };
 
     socket.onmessage = (event) => {
         const obj = JSON.parse(event.data);
         if(obj.state == "login"){
             create_login_page();
+
+            socket.send("{lpc:ack}\0");
         }
         console.log(obj.state);
     };
