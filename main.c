@@ -117,10 +117,25 @@ websocket_decode_frame(uint8_t *frame,
 
 }
 
+int 
+session_validate_login(void* session)
+{
+    session_t* s = (session_t*)(session);
+    char login_data[128];
+    if(s->data_len < 128)
+    {
+        memset(login_data, 0, 128);
+        websocket_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
+        printf("Login Data Received: %s\r\n", login_data);
+    }
+
+    return 0;
+}
+
 int session_create_login_page_ack(void* session)
 {
     session_t* s = (session_t*)(session);
-    const char* w_ack = "{lpc:ack}\0";
+    const char* w_ack = {"{\"lpc\":\"ack\"}\0"};
     char lpc_ack[20];
     int ret;
 
@@ -137,6 +152,7 @@ int session_create_login_page_ack(void* session)
         if(0 == ret)
         {
             printf(" LPC ACK OK => %s \r\n", lpc_ack);
+            s->service = session_validate_login;
         }
     }
 
@@ -224,7 +240,7 @@ int ws_connection(void* session)
     }
     else 
     {
-        const char* ws_ack = "{ws:ack}\0"; 
+        const char* ws_ack = {"{\"ws\":\"ack\"}\0"};
         uint8_t ack_data[20];
         int i;
         int ret;

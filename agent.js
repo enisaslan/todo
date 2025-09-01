@@ -2,12 +2,29 @@
 let server_address = "ws://localhost:8081"
 
 // sen button event container 
-function send_btn_cb()
+function send_btn_cb(socket)
 {
     console.log("Send Button Clicked");
+    
+    const ei = document.getElementById("ei-line-edit");
+    const pi = document.getElementById("pi-line-edit");
+
+    if(ei.value && pi.value)
+    {
+        let login_data = {
+            email:ei.value,
+            password:pi.value,
+        };
+
+        socket.send(JSON.stringify(login_data));
+    }
+    else
+    {
+        alert("Please insert the your login data !!");
+    }
 }
 
-function create_login_page()
+function create_login_page(socket)
 {
     const container = document.getElementById("container");
     container.innerHTML = "";
@@ -16,23 +33,28 @@ function create_login_page()
     const ei = document.createElement("input");
     ei.type = "text";
     ei.id = "ei-line-edit";
+    ei.style.marginRight = "5px";
 
     // password input line edit
     const pi = document.createElement("input");
     pi.type = "password";
     pi.id = "pi-line-edit";
+    pi.style.marginRight = "5px";
+
 
     // submit button 
     const sb = document.createElement("button");
     sb.innerText = "Send";
     sb.id = "sb-button";
-    sb.addEventListener("click", send_btn_cb);
+    sb.style.marginRight = "5px";
+    sb.addEventListener("click", function (event){
+        send_btn_cb(socket);
+    });
 
     // add to main container
     container.appendChild(ei);
     container.appendChild(pi);
     container.appendChild(sb);
-
 }
 
 
@@ -42,15 +64,23 @@ function create_websocket ()
 
     socket.onopen = () => {
         console.log("WS Connection Created.. ACK sending..");
-        socket.send("{ws:ack}\0");
+        let ws_ack = {
+            ws:"ack",
+        };
+
+        socket.send(JSON.stringify(ws_ack));
     };
 
     socket.onmessage = (event) => {
         const obj = JSON.parse(event.data);
         if(obj.state == "login"){
-            create_login_page();
+            create_login_page(socket);
 
-            socket.send("{lpc:ack}\0");
+            let lpc_ack = {
+                lpc:"ack",
+            };
+
+            socket.send(JSON.stringify(lpc_ack));
         }
         console.log(obj.state);
     };
