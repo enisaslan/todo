@@ -58,6 +58,18 @@ function create_login_page(socket)
 }
 
 
+function create_main_page(socket_id, data_obj)
+{
+    const container = document.getElementById("container");
+    container.innerHTML = "";
+
+    const a_label = document.createElement("a");
+    a_label.innerHTML = data_obj.name + " " + data_obj.last_name;
+    a_label.style.marginRight = "5px";
+
+    container.appendChild(a_label);
+}   
+
 function create_websocket ()
 {
     const socket = new WebSocket(server_address);
@@ -82,6 +94,13 @@ function create_websocket ()
 
             socket.send(JSON.stringify(lpc_ack));
         }
+
+        else if(obj.state == "login_ok")
+        {
+            create_main_page(socket, obj);
+        }
+
+
         console.log(obj.state);
     };
 

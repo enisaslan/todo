@@ -7,21 +7,88 @@
 #include <openssl/sha.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include "cjson/cJSON.h"
 
 #define SERVER_PORT     8081
 #define RX_BUFFER_SIZE  4096
 #define CLIENT_KEY_SIZE 256
 
-typedef enum session_state_t
+typedef enum todo_state_t
 {
-    STATE_CONNECTION = 9,
-    STATE_WS,
-    STATE_WS_ACK,
-    STATE_LOGIN,
-    STATE_HOME,
-    STATE_HOME_ACK,
-    STATE_IDLE,
-}session_state_t;
+    TODO_FREE = 0,
+    TODO_ACTIVE,
+    TODO_COMPLETED
+}toto_state_t;
+
+typedef struct todo_t
+{
+    char summary[32];
+    char detailed_info[512];
+    toto_state_t state;
+}todo_t;
+
+typedef struct user_t
+{
+    uint8_t state;
+    char name[32];
+    char last_name[32];
+    char password[32];
+    char email[32];
+    todo_t todo_list[64];
+}user_t;
+
+user_t local_storage[4] = {
+    [0].state = 1,
+    [0].name = "Enis\0",
+    [0].last_name = "Aslan\0",
+    [0].password = "ee12aa34",
+    [0].email = "enis.aslan",
+
+    [1].state = 1,
+    [1].name = "Sare\0",
+    [1].last_name = "Aslan\0",
+    [1].password = "ss12aa34",
+    [1].email = "sare.aslan",
+
+    [2].state = 1,
+    [2].name = "Beyza\0",
+    [2].last_name = "Aslan\0",
+    [2].password = "bb12aa34",
+    [2].email = "beyza.aslan",
+
+    [3].state = 0,
+
+};
+
+user_t* 
+find_user(char* email, char* pass)
+{
+    int state;
+    user_t* iter;
+    int i;
+    for(i = 0; i < 4; i++)
+    {
+        iter = &local_storage[i];
+
+        if(0 == iter->state)
+        {
+            continue;
+        }
+        
+        state = strcmp(iter->email, email);
+        if(0 == state)
+        {
+            state = strcmp(iter->password, pass);
+            if(0 == state)
+            {
+                return iter;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 
 /** session service function type definitin */
 typedef int (*session_service_fn_t)(void*);
@@ -36,7 +103,6 @@ typedef struct session_t
     int socket_id; 
     char* buffer;
     int data_len;
-    session_state_t state;
     session_service_fn_t service;
 }session_t;
 
@@ -114,19 +180,69 @@ websocket_decode_frame(uint8_t *frame,
     }
 
     ret_frame[payload_len] = '\0'; // null-terminate
-
 }
 
 int 
 session_validate_login(void* session)
 {
     session_t* s = (session_t*)(session);
+    cJSON *root;
+    cJSON *email;
+    cJSON *pass;
+    user_t* user = NULL;
+    int ret;
+
     char login_data[128];
     if(s->data_len < 128)
     {
         memset(login_data, 0, 128);
         websocket_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
-        printf("Login Data Received: %s\r\n", login_data);
+
+        root = cJSON_Parse(login_data);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR!\n");
+            return 1;
+        }
+
+        email = cJSON_GetObjectItemCaseSensitive(root, "email");
+        pass = cJSON_GetObjectItemCaseSensitive(root, "password");
+
+        if (cJSON_IsString(email) && email->valuestring != NULL) 
+        {
+            if (cJSON_IsString(pass) && pass->valuestring != NULL) 
+            {
+                user = find_user(email->valuestring, pass->valuestring);
+            }
+        }
+
+        if(NULL != user)
+        {
+            printf("User Name: %s %s - Mail: %s\r\n", user->name, user->last_name, user->email);
+            user->state = 2;
+
+            cJSON *ok_root = cJSON_CreateObject();
+
+            // Alan ekle
+            cJSON_AddStringToObject(ok_root, "state", "login_ok");
+            cJSON_AddStringToObject(ok_root, "name", user->name);
+            cJSON_AddStringToObject(ok_root, "last_name", user->last_name);
+            
+            char *json_str = cJSON_PrintUnformatted(ok_root);
+            
+            ret = send_ws_message(s->socket_id, json_str, strlen(json_str));
+            if(ret > 0)
+            {
+                printf("Total %d Bytes WS data sended...\r\n", ret);
+            }
+
+            cJSON_Delete(ok_root);
+            free(json_str);
+        }
+        else 
+        {
+            printf("Please Check the your login info !!!\r\n");
+        }
     }
 
     return 0;
@@ -235,8 +351,6 @@ int ws_connection(void* session)
         {
             printf("Total %d Bytes Handshake data sended...\r\n", ret);
         }
-
-        s->state = STATE_IDLE;
     }
     else 
     {
@@ -297,7 +411,6 @@ create_session(int socketID)
     {
         session->id = id;
         session->socket_id = socketID;
-        session->state = STATE_CONNECTION;
         session->service = session_idle;
         id++;
 
@@ -333,7 +446,6 @@ clientThread(void *arg)
     }
 
     /** Set session state as web-socket auth */
-    session->state = STATE_WS;
     session->service = ws_connection;
 
     printf("Running Session ID %d - Socket ID %d \r\n", session->id, session->socket_id);
