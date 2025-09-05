@@ -13,6 +13,9 @@
 #define RX_BUFFER_SIZE  4096
 #define CLIENT_KEY_SIZE 256
 
+#define MAX_TODO_COUNT  64
+#define MAX_TODO_SUMMARY_LENGTH  32
+#define MAX_TODO_DETAIL_LENGTH  512
 typedef enum todo_state_t
 {
     TODO_FREE = 0,
@@ -22,8 +25,8 @@ typedef enum todo_state_t
 
 typedef struct todo_t
 {
-    char summary[32];
-    char detailed_info[512];
+    char summary[MAX_TODO_SUMMARY_LENGTH];
+    char details[MAX_TODO_DETAIL_LENGTH];
     toto_state_t state;
 }todo_t;
 
@@ -34,7 +37,7 @@ typedef struct user_t
     char last_name[32];
     char password[32];
     char email[32];
-    todo_t todo_list[64];
+    todo_t todo_list[MAX_TODO_COUNT];
 }user_t;
 
 user_t local_storage[4] = {
@@ -59,6 +62,56 @@ user_t local_storage[4] = {
     [3].state = 0,
 
 };
+
+void create_mock_todo(user_t* user);
+int get_todo_count(user_t* user);
+int get_completed_todo_count(user_t* user);
+int get_active_todo_count(user_t* user);
+int create_new_todo(user_t* user, char* summary, char* details);
+
+void create_mock_todo(user_t* user)
+{
+    create_new_todo(user, "Source Parsing\0", "C Source code should split to other related source files.\0");
+    create_new_todo(user, "Madal Form Creation\0", "JS Modal Creation Techniques is researches\0");
+
+}
+
+int create_new_todo(user_t* user, char* summary, char* details)
+{
+    todo_t* todo;
+    int i;
+    int todo_count = get_todo_count(user);
+    int summary_length = strlen(summary);
+    int details_length = strlen(details);
+
+    if(summary_length > MAX_TODO_SUMMARY_LENGTH)
+    {
+        return -2;
+    }
+
+
+    if(details_length > MAX_TODO_DETAIL_LENGTH)
+    {
+        return -3;
+    }
+
+    if(todo_count < MAX_TODO_COUNT)
+    {
+        for(i = 0; i < MAX_TODO_COUNT; i++)
+        {
+            todo = &user->todo_list[i];
+            if(todo->state == TODO_FREE)
+            {
+                todo->state = TODO_ACTIVE;
+                strncpy(todo->summary, summary, MAX_TODO_SUMMARY_LENGTH);
+                strncpy(todo->details, details, MAX_TODO_DETAIL_LENGTH);
+                return 0;
+            }
+        }
+    }
+
+    return -1;
+}
 
 user_t* 
 find_user(char* email, char* pass)
@@ -182,6 +235,60 @@ websocket_decode_frame(uint8_t *frame,
     ret_frame[payload_len] = '\0'; // null-terminate
 }
 
+int get_todo_count(user_t* user)
+{
+    int i; 
+    int count = 0;
+    todo_t* todo;
+    for(i = 0; i < MAX_TODO_COUNT; i++)
+    {
+        todo = &user->todo_list[i];
+        if(todo->state != TODO_FREE)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+int get_completed_todo_count(user_t* user)
+{
+    int i; 
+    int count = 0;
+    todo_t* todo;
+    for(i = 0; i < MAX_TODO_COUNT; i++)
+    {
+        todo = &user->todo_list[i];
+        if(todo->state == TODO_COMPLETED)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+
+int get_active_todo_count(user_t* user)
+{
+    int i; 
+    int count = 0;
+    todo_t* todo;
+    for(i = 0; i < MAX_TODO_COUNT; i++)
+    {
+        todo = &user->todo_list[i];
+        if(todo->state == TODO_ACTIVE)
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+
+
 int 
 session_validate_login(void* session)
 {
@@ -218,15 +325,24 @@ session_validate_login(void* session)
 
         if(NULL != user)
         {
+            // test data create
+            create_mock_todo(user);
+
             printf("User Name: %s %s - Mail: %s\r\n", user->name, user->last_name, user->email);
+            
             user->state = 2;
 
+            int active_todo_cnt = get_active_todo_count(user);
+            int completed_todo_cnt = get_completed_todo_count(user);
             cJSON *ok_root = cJSON_CreateObject();
 
             // Alan ekle
             cJSON_AddStringToObject(ok_root, "state", "login_ok");
             cJSON_AddStringToObject(ok_root, "name", user->name);
             cJSON_AddStringToObject(ok_root, "last_name", user->last_name);
+            cJSON_AddNumberToObject(ok_root, "active_count", active_todo_cnt);
+            cJSON_AddNumberToObject(ok_root, "completed_count", completed_todo_cnt);
+
             
             char *json_str = cJSON_PrintUnformatted(ok_root);
             

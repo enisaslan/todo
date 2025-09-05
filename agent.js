@@ -57,17 +57,50 @@ function create_login_page(socket)
     container.appendChild(sb);
 }
 
+function create_new_todo_cb(socket_id)
+{
+    console.log("New Todo Create Button Clicked !!!");
+}
 
 function create_main_page(socket_id, data_obj)
 {
     const container = document.getElementById("container");
     container.innerHTML = "";
 
-    const a_label = document.createElement("a");
-    a_label.innerHTML = data_obj.name + " " + data_obj.last_name;
-    a_label.style.marginRight = "5px";
+    const header_div = document.createElement("div");
+    const body_div = document.createElement("div");
 
-    container.appendChild(a_label);
+    header_div.style.backgroundColor = "#6bc1f3ff";
+    header_div.style.padding = "3px";
+
+    const user_a = document.createElement("a");
+    user_a.innerHTML = data_obj.name + " " + data_obj.last_name;
+    user_a.style.marginRight = "10px";
+
+    const new_todo = document.createElement("button");
+    new_todo.innerText = "New Todo";
+    new_todo.id = "new-todo-button";
+    new_todo.style.marginRight = "10px";
+    new_todo.addEventListener("click", function (event){
+        create_new_todo_cb(socket_id);
+    });
+
+    const total_todo = document.createElement("a");
+    total_todo.innerHTML = "| Active ToDo Count: " + 
+                    data_obj.active_count + 
+                    " | Completed ToDo Count: " + 
+                    data_obj.completed_count + " | ";
+    total_todo.style.marginRight = "10px";
+
+    header_div.appendChild(user_a);
+    header_div.appendChild(total_todo);
+    header_div.appendChild(new_todo);
+
+    container.appendChild(header_div);
+    container.appendChild(body_div);
+
+
+
 }   
 
 function create_websocket ()
@@ -85,7 +118,8 @@ function create_websocket ()
 
     socket.onmessage = (event) => {
         const obj = JSON.parse(event.data);
-        if(obj.state == "login"){
+        if(obj.state == "login")
+        {
             create_login_page(socket);
 
             let lpc_ack = {
