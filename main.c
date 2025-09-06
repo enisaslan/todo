@@ -162,17 +162,44 @@ typedef struct session_t
 int 
 send_ws_message(int socketID, 
                 const char* data, 
-                int data_len)
+                uint16_t data_len)
 {
-    unsigned char ws_frame[512];
+    int ret;
+    if(data_len < 126)
+    {
+        unsigned char ws_frame[1024];
+        ws_frame[0] = 0x81;  /** FIN=1, text frame */
+        ws_frame[1] = (uint8_t)data_len;
+        memcpy(&ws_frame[2], data, data_len);
+        return send(socketID, ws_frame, data_len + 2, 0);
+    }
+    else  /// 126Byte - 65535Byte 
+    {
+        unsigned char* ws_frame = malloc(65535);
+        if(NULL == ws_frame)
+        {
+            printf("WS Send Buffer Allocation Fail\r\n");
+            return -1;
+        }
+        
+        // clear the ws buffer
+        memset(ws_frame, 0, 65535);
 
-    ws_frame[0] = 0x81;  /** FIN=1, text frame */
-    ws_frame[1] = data_len;
-    memcpy(&ws_frame[2], data, data_len);
+        ws_frame[0] = 0x81;  /** FIN=1, text frame */
+        ws_frame[1] = 126; /** No Mask(Bit 7) + Use the Extended Data Length Area */
+        ws_frame[2] = (uint8_t)(data_len >> 8); // extended length area 
+        ws_frame[3] = (uint8_t)(data_len); // extended data length area
+        memcpy(&ws_frame[4], data, data_len);
 
-    return send(socketID, ws_frame, data_len + 2, 0);
+        ret = send(socketID, ws_frame, data_len + 4, 0);
+
+        free(ws_frame);
+
+        return ret;
+    }
+
+    return -1;
 }
-
 
 void 
 websocket_decode_frame(uint8_t *frame, 
@@ -342,6 +369,7 @@ session_validate_login(void* session)
             cJSON_AddStringToObject(ok_root, "last_name", user->last_name);
             cJSON_AddNumberToObject(ok_root, "active_count", active_todo_cnt);
             cJSON_AddNumberToObject(ok_root, "completed_count", completed_todo_cnt);
+            cJSON_AddStringToObject(ok_root, "test", "01234567890123456789012345678901234567890123456789");
 
             
             char *json_str = cJSON_PrintUnformatted(ok_root);

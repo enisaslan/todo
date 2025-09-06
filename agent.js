@@ -131,11 +131,13 @@ function create_websocket ()
 
         else if(obj.state == "login_ok")
         {
-            create_main_page(socket, obj);
+            console.log(obj.test);
+            create_main_page(socket, obj); 
         }
-
-
-        console.log(obj.state);
+        else
+        {
+            console.log(obj.test);
+        }
     };
 
     socket.onclose = () => {
