@@ -157,6 +157,7 @@ typedef struct session_t
     int socket_id; 
     char* buffer;
     int data_len;
+    user_t *user;
     session_service_fn_t service;
 }session_t;
 
@@ -333,6 +334,8 @@ session_validate_login(void* session)
     user_t *user = NULL;
     int ret;
 
+    printf("session_validate_login !\n");
+
     char login_data[128];
     if(s->data_len < 128)
     {
@@ -357,6 +360,7 @@ session_validate_login(void* session)
             state = strcmp(type->valuestring, "data\0");
             if(state == 0)
             {
+                printf("Login Data Received\r\n");
                 itype = 1;
             }
             else
@@ -394,6 +398,9 @@ session_validate_login(void* session)
 
             if(NULL != user)
             {
+                // update the session with the user;
+                s->user = user;
+             
                 // test data create
                 create_mock_todo(user);
 
@@ -440,12 +447,63 @@ session_validate_login(void* session)
     return 0;
 }
 
+
+int send_todo_list(session_t* s)
+{
+    int ret;
+    todo_t *todo;
+    int i = 0;
+    int todo_count = get_todo_count(s->user);
+    cJSON *root = cJSON_CreateObject();
+    cJSON *todo_list = cJSON_AddArrayToObject(root, "todo_list");
+
+    // Alan ekle
+    cJSON_AddStringToObject(root, "type", "data");
+    cJSON_AddNumberToObject(root, "response", 101);
+    cJSON_AddNumberToObject(root, "todo_count", todo_count);
+
+    for(i = 0; i < MAX_TODO_COUNT; i++)
+    {
+        todo = &s->user->todo_list[i];
+
+        if(todo->state != TODO_FREE)
+        {
+            cJSON_AddItemToArray(todo_list, cJSON_CreateNumber(todo->state));
+            cJSON_AddItemToArray(todo_list, cJSON_CreateString(todo->summary));
+            cJSON_AddItemToArray(todo_list, cJSON_CreateString(todo->details));
+        }
+    }
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    
+    ret = send_ws_message(s->socket_id, json_str, strlen(json_str));
+    if(ret > 0)
+    {
+        printf("Total %d Bytes WS data sended...\r\n", ret);
+    }
+
+    cJSON_Delete(root);
+    free(json_str);
+
+    return 0;
+}
+
+int execute_request(session_t* s, int req_id)
+{
+    if(req_id == 101) // get todo list
+    {
+        send_todo_list(s);        
+    }
+
+    return 0;
+}
+
 int data_exchange(void *session)
 {
     session_t* s = (session_t*)(session);
-
     cJSON *root;
     cJSON *type;
+    cJSON *req;
     int itype = 3;
     int state;
     user_t *user = NULL;
@@ -503,7 +561,18 @@ int data_exchange(void *session)
 
         if(itype == 1) // data
         {
-
+            printf("Data received \r\n");
+            req = cJSON_GetObjectItemCaseSensitive(root, "request");
+            if(NULL != type)
+            {
+                if(cJSON_IsNumber(req))
+                {
+                    execute_request(s, req->valueint);
+                }
+            }
+            else {
+                itype = 0;
+            }
         }
         else if(itype == 2) // ack 
         {
@@ -734,6 +803,7 @@ clientThread(void *arg)
         if(ret_size > 0)
         {
             session->data_len = ret_size;
+            printf(" Rx \n");
             session->service(session);
         }
         else if (ret_size == 0) 

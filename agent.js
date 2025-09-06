@@ -63,13 +63,20 @@ function create_new_todo_cb(socket_id)
     console.log("New Todo Create Button Clicked !!!");
 }
 
+function blockSleep(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {}
+}
+
 function create_main_page(socket_id, data_obj)
 {
     const container = document.getElementById("container");
     container.innerHTML = "";
 
     const header_div = document.createElement("div");
+    header_div.id = "header-div";
     const body_div = document.createElement("div");
+    body_div.id = "body-div";
 
     header_div.style.backgroundColor = "#6bc1f3ff";
     header_div.style.padding = "3px";
@@ -108,7 +115,46 @@ function create_main_page(socket_id, data_obj)
     console.log("ack sended");
 
     socket_id.send(JSON.stringify(main_page_ack));
+
+blockSleep(10);
+
+    console.log("todo list req sended");
+
+    let get_todo_list_req = {
+        type:"data",
+        request:101, //get todo list
+    };
+
+    socket_id.send(JSON.stringify(get_todo_list_req));
 }   
+
+function create_todo_list(socket, obj)
+{
+    const body_div = document.getElementById("body-div");
+    body_div.innerHTML = "";
+    body_div.style.display = "flex";
+    body_div.style.flexDirection = "column";
+    body_div.style.gap = "10px";
+    body_div.style.marginTop = "10px";
+    body_div.style.backgroundColor = "#a9d5eeff";
+    body_div.style.padding = "3px";
+
+    const mlength  = obj.todo_list.length / 3;
+    console.log("length:" + mlength);
+
+    for (let i = 0; i<mlength; i++) 
+    {
+        const xdiv = document.createElement("div");
+
+        const adata = document.createElement("a");
+        adata.innerHTML = obj.todo_list[(i*3) + 1] + " - " + obj.todo_list[(i*3) + 2] ;
+
+        xdiv.appendChild(adata);
+        body_div.appendChild(xdiv);
+    }
+
+
+}
 
 function create_websocket ()
 {
@@ -139,6 +185,11 @@ function create_websocket ()
         else if(obj.state == "login_ok")
         {
             create_main_page(socket, obj); 
+        }
+        else if(obj.type == "data" && obj.response == 101)
+        {
+            create_todo_list(socket, obj); 
+            //console.log(obj);
         }
         else
         {
