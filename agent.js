@@ -12,6 +12,7 @@ function send_btn_cb(socket)
     if(ei.value && pi.value)
     {
         let login_data = {
+            type:"data",
             email:ei.value,
             password:pi.value,
         };
@@ -99,8 +100,14 @@ function create_main_page(socket_id, data_obj)
     container.appendChild(header_div);
     container.appendChild(body_div);
 
+    let main_page_ack = {
+        type:"ack",
+        state:"main_page_created",
+    };
 
+    console.log("ack sended");
 
+    socket_id.send(JSON.stringify(main_page_ack));
 }   
 
 function create_websocket ()
@@ -131,12 +138,11 @@ function create_websocket ()
 
         else if(obj.state == "login_ok")
         {
-            console.log(obj.test);
             create_main_page(socket, obj); 
         }
         else
         {
-            console.log(obj.test);
+            console.log(" Unknown Data Received ");
         }
     };
 
