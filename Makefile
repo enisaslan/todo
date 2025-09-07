@@ -8,7 +8,7 @@ BOOST_INCLUDE_DIR = /usr/include
 BOOST_LIB_DIR = /usr/lib/x86_64-linux-gnu
 
 # Source files and target
-SRCS = main.c cjson/cJSON.c
+SRCS = main.c todo.c cjson/cJSON.c
 OBJS = $(SRCS:.c=.o)
 TARGET = server
 
