@@ -14,8 +14,6 @@
 
 #define SERVER_PORT     8081
 #define RX_BUFFER_SIZE  4096
-#define CLIENT_KEY_SIZE 256
-
 
 typedef struct user_t
 {
@@ -51,7 +49,6 @@ user_t local_storage[4] = {
 };
 
 int data_exchange(void *session);
-
 
 user_t* 
 find_user(char* email, char* pass)
@@ -99,8 +96,6 @@ typedef struct session_t
     user_t *user;
     session_service_fn_t service;
 }session_t;
-
-
 
 int 
 session_validate_login(void* session)
@@ -227,7 +222,6 @@ session_validate_login(void* session)
 
     return 0;
 }
-
 
 int send_todo_list(session_t* s)
 {
@@ -420,9 +414,7 @@ session_create_login_page(void* session)
     return 0;
 }
 
-
-
-int ws_connection(void* session)
+int session_connection(void* session)
 {
     session_t* s = (session_t*)(session);
     char* key_addr;
@@ -434,46 +426,8 @@ int ws_connection(void* session)
     key_addr = strstr(s->buffer, "Sec-WebSocket-Key: ");
     if(NULL != key_addr)
     {
-        char client_key[CLIENT_KEY_SIZE];
-        memset(client_key, 0, CLIENT_KEY_SIZE);
-
-        key_addr += strlen("Sec-WebSocket-Key: ");
-        sscanf(key_addr, "%s", client_key);
-
-        printf("Client %d - Key: %s \r\n", s->socket_id, client_key);
-
-        /** This GUID defined in RFC6455 ve RFC4122 documents */
-        char to_hash[256];
-        snprintf(to_hash, sizeof(to_hash), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", client_key);
-
-        /** Calculate SHA1 */
-        unsigned char sha1_result[SHA_DIGEST_LENGTH];
-        SHA1((unsigned char*)to_hash, strlen(to_hash), sha1_result);
-        
-        unsigned char encoded_data[CLIENT_KEY_SIZE];
-        memset(encoded_data, 0, CLIENT_KEY_SIZE);
-
-        /** Base64 encode */
-        EVP_EncodeBlock((unsigned char*)&encoded_data, (const unsigned char*)&sha1_result, SHA_DIGEST_LENGTH);
-
-        printf("Base64 Encoded Data: %s \r\n", encoded_data);
-
-        /** Handshake */
-        char response[2*CLIENT_KEY_SIZE];
-        memset(response, 0, 2*CLIENT_KEY_SIZE);
-
-        snprintf(response, sizeof(response),
-                "HTTP/1.1 101 Switching Protocols\r\n"
-                "Upgrade: websocket\r\n"
-                "Connection: Upgrade\r\n"
-                "Sec-WebSocket-Accept: %s\r\n\r\n",
-                encoded_data);
-
-        ret = send(s->socket_id, response, strlen(response), 0);
-        if(ret > 0)
-        {
-            printf("Total %d Bytes Handshake data sended...\r\n", ret);
-        }
+        /** Send Connection OK ACK */
+        ws_send_connection_ok(s->socket_id, s->buffer);
     }
     else 
     {
@@ -569,7 +523,7 @@ clientThread(void *arg)
     }
 
     /** Set session state as web-socket auth */
-    session->service = ws_connection;
+    session->service = session_connection;
 
     printf("Running Session ID %d - Socket ID %d \r\n", session->id, session->socket_id);
 

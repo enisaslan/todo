@@ -3,6 +3,9 @@
 #include "string.h"
 #include "stdlib.h"
 #include "sys/socket.h"
+#include <openssl/sha.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
 
 void 
 ws_decode_frame(uint8_t *frame, 
@@ -112,3 +115,55 @@ ws_send_message(int socketID,
     return -1;
 }
 
+void ws_send_connection_ok(int socket_id, 
+                            const char* data)
+{
+    char* key_addr;
+    int ret;
+
+    printf("Session in WS Connection State ... \r\n");
+
+    /** Find the "Sec-WebSocket-Key" */ 
+    key_addr = strstr(data, "Sec-WebSocket-Key: ");
+
+    char client_key[CLIENT_KEY_SIZE];
+    memset(client_key, 0, CLIENT_KEY_SIZE);
+
+    key_addr += strlen("Sec-WebSocket-Key: ");
+    sscanf(key_addr, "%s", client_key);
+
+    printf("Client %d - Key: %s \r\n", socket_id, client_key);
+
+    /** This GUID defined in RFC6455 ve RFC4122 documents */
+    char to_hash[256];
+    snprintf(to_hash, sizeof(to_hash), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", client_key);
+
+    /** Calculate SHA1 */
+    unsigned char sha1_result[SHA_DIGEST_LENGTH];
+    SHA1((unsigned char*)to_hash, strlen(to_hash), sha1_result);
+    
+    unsigned char encoded_data[CLIENT_KEY_SIZE];
+    memset(encoded_data, 0, CLIENT_KEY_SIZE);
+
+    /** Base64 encode */
+    EVP_EncodeBlock((unsigned char*)&encoded_data, (const unsigned char*)&sha1_result, SHA_DIGEST_LENGTH);
+
+    printf("Base64 Encoded Data: %s \r\n", encoded_data);
+
+    /** Handshake */
+    char response[2*CLIENT_KEY_SIZE];
+    memset(response, 0, 2*CLIENT_KEY_SIZE);
+
+    snprintf(response, sizeof(response),
+            "HTTP/1.1 101 Switching Protocols\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Accept: %s\r\n\r\n",
+            encoded_data);
+
+    ret = send(socket_id, response, strlen(response), 0);
+    if(ret > 0)
+    {
+        printf("Total %d Bytes Handshake data sended...\r\n", ret);
+    }
+}
