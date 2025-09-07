@@ -136,7 +136,7 @@ function create_todo_list(socket, obj)
     body_div.style.flexDirection = "column";
     body_div.style.gap = "10px";
     body_div.style.marginTop = "10px";
-    body_div.style.backgroundColor = "#a9d5eeff";
+    body_div.style.backgroundColor = "#bbc7d4ff";
     body_div.style.padding = "3px";
 
     const mlength  = obj.todo_list.length / 3;
