@@ -517,7 +517,7 @@ int data_exchange(void *session)
         memset(login_data, 0, 4096);
         websocket_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
 
-        printf("exchange data received 2 \n");
+        printf("exchange data received 2. \n");
 
         root = cJSON_Parse(login_data);
         if (root == NULL) 
