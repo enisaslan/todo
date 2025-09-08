@@ -284,17 +284,12 @@ int data_exchange(void *session)
     user_t *user = NULL;
     int ret;
 
-    printf("exchange data received 1 \n");
-
-    char login_data[4096];
+    char x_data[4096];
     if(s->data_len < 4096)
     {
-        memset(login_data, 0, 4096);
-        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
-
-        printf("exchange data received 2. \n");
-
-        root = cJSON_Parse(login_data);
+        memset(x_data, 0, 4096);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)x_data);
+        root = cJSON_Parse(x_data);
         if (root == NULL) 
         {
             printf("JSON parse ERROR!\n");
@@ -345,7 +340,8 @@ int data_exchange(void *session)
                     execute_request(s, req->valueint);
                 }
             }
-            else {
+            else 
+            {
                 itype = 0;
             }
         }
@@ -538,7 +534,6 @@ clientThread(void *arg)
         if(ret_size > 0)
         {
             session->data_len = ret_size;
-            printf(" Rx \n");
             session->service(session);
         }
         else if (ret_size == 0) 

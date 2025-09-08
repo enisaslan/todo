@@ -63,6 +63,22 @@ function create_new_todo_cb(socket_id)
     console.log("New Todo Create Button Clicked !!!");
 }
 
+function delete_todo_cb(socket_id, btn_id)
+{
+    console.log("Todo Delete Button " + btn_id + " Clicked !!!");
+
+    let todo_deleted_cmd = {
+        type:"data",
+        cmd:200, // delete
+        todo_id:btn_id,
+    };
+
+    console.log("Todo " + btn_id + " Delete Command Sended !!");
+
+    socket_id.send(JSON.stringify(todo_deleted_cmd));
+}
+
+
 function blockSleep(ms) {
   const end = Date.now() + ms;
   while (Date.now() < end) {}
@@ -80,6 +96,7 @@ function create_main_page(socket_id, data_obj)
 
     header_div.style.backgroundColor = "#6bc1f3ff";
     header_div.style.padding = "3px";
+    header_div.style.borderRadius = "3px";
 
     const user_a = document.createElement("a");
     user_a.innerHTML = data_obj.name + " " + data_obj.last_name;
@@ -128,7 +145,7 @@ blockSleep(10);
     socket_id.send(JSON.stringify(get_todo_list_req));
 }   
 
-function create_todo_list(socket, obj)
+function create_todo_list(socket_id, obj)
 {
     const body_div = document.getElementById("body-div");
     body_div.innerHTML = "";
@@ -136,8 +153,9 @@ function create_todo_list(socket, obj)
     body_div.style.flexDirection = "column";
     body_div.style.gap = "10px";
     body_div.style.marginTop = "10px";
-    body_div.style.backgroundColor = "#bbc7d4ff";
+    body_div.style.backgroundColor = "#d0d3d4ff";
     body_div.style.padding = "3px";
+    body_div.style.borderRadius = "3px";
 
     const mlength  = obj.todo_list.length / 3;
     console.log("length:" + mlength);
@@ -145,15 +163,28 @@ function create_todo_list(socket, obj)
     for (let i = 0; i<mlength; i++) 
     {
         const xdiv = document.createElement("div");
+        xdiv.style.backgroundColor = "#abc1d8ff"
+        xdiv.style.margin = "3px";
+        xdiv.style.padding = "3px";
+        xdiv.style.borderRadius = "3px";
+        xdiv.style.display = "flex";
+        xdiv.style.justifyContent = "space-between";
 
         const adata = document.createElement("a");
         adata.innerHTML = obj.todo_list[(i*3) + 1] + " - " + obj.todo_list[(i*3) + 2] ;
-
         xdiv.appendChild(adata);
+
+        const delete_btn = document.createElement("button");
+        delete_btn.innerText = "Delete";
+        delete_btn.id = "delete-button-" + i;
+        delete_btn.addEventListener("click", function (event, id){
+            delete_todo_cb(socket_id, i);
+        });
+
+        xdiv.appendChild(delete_btn);
+
         body_div.appendChild(xdiv);
     }
-
-
 }
 
 function create_websocket ()
