@@ -197,30 +197,21 @@ function create_websocket ()
             ws:"ack",
         };
 
+        create_login_page(socket);
         socket.send(JSON.stringify(ws_ack));
+        
     };
 
     socket.onmessage = (event) => {
         const obj = JSON.parse(event.data);
-        if(obj.state == "login")
-        {
-            create_login_page(socket);
 
-            let lpc_ack = {
-                lpc:"ack",
-            };
-
-            socket.send(JSON.stringify(lpc_ack));
-        }
-
-        else if(obj.state == "login_ok")
+        if(obj.state == "login_ok")
         {
             create_main_page(socket, obj); 
         }
         else if(obj.type == "data" && obj.response == 101)
         {
             create_todo_list(socket, obj); 
-            //console.log(obj);
         }
         else
         {

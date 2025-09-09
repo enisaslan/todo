@@ -11,9 +11,24 @@
 
 #include "todo.h"
 #include "ws.h"
+#include "serviceManager.h"
+
+/** session service function type definitin */
+// typedef int (*session_service_fn_t)(void*);
+
+// session_service_fn_t service_map[32];
+
 
 #define SERVER_PORT     8081
 #define RX_BUFFER_SIZE  4096
+
+typedef enum connection_stage_t
+{
+    CONN_STAGE_HTTP = 0,
+    CONN_STAGE_WS = 1,
+    CONN_STAGE_LOGOUT = 2,
+    CONN_STAGE_LOGIN = 3
+}connection_stage_t;
 
 typedef struct user_t
 {
@@ -80,10 +95,6 @@ find_user(char* email, char* pass)
 }
 
 
-/** session service function type definitin */
-typedef int (*session_service_fn_t)(void*);
-
-
 /**
  * @brief session type definition 
  */ 
@@ -95,6 +106,10 @@ typedef struct session_t
     int data_len;
     user_t *user;
     session_service_fn_t service;
+
+    int stage;
+    int precondition;
+
 }session_t;
 
 int 
@@ -410,13 +425,31 @@ session_create_login_page(void* session)
     return 0;
 }
 
-int session_connection(void* session)
+int stage_logout(void* session)
+{
+    session_t* s = (session_t*)(session);
+
+    if(CONN_STAGE_LOGOUT != s->stage)
+    {
+        return -1;
+    }
+
+    session_validate_login(session);
+
+    return 0;
+}
+
+int stage_connection(void* session)
 {
     session_t* s = (session_t*)(session);
     char* key_addr;
-    int ret;
 
-    printf("Session in WS Connection State ... \r\n");
+    printf("Stage: WS Connection State ... \r\n");
+
+    if(CONN_STAGE_WS != s->stage)
+    {
+        return -1;
+    }
 
     /** Find the "Sec-WebSocket-Key" */ 
     key_addr = strstr(s->buffer, "Sec-WebSocket-Key: ");
@@ -424,32 +457,38 @@ int session_connection(void* session)
     {
         /** Send Connection OK ACK */
         ws_send_connection_ok(s->socket_id, s->buffer);
+        s->precondition = 0xEA; 
+        return 0;
     }
-    else 
+    else if(0xEA == s->precondition)
     {
         const char* ws_ack = {"{\"ws\":\"ack\"}\0"};
         uint8_t ack_data[20];
         int i;
         int ret;
-        printf("Received an Other Data in WS Connection State. Data Len %d\r\n", s->data_len);
         
         if(s->data_len < 20)
         {
             memset(ack_data, 0, 20);
             ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)&ack_data);
 
-            printf("Received Data: %s \r\n", ack_data);
+            printf("State 3E4E - Data Len %d - Data %s\r\n", s->data_len, ack_data);
+
             ret = strcmp((const char *)ack_data, ws_ack);
             if(0 == ret)
             {
-                printf(" ACK OK => %s \r\n", ack_data);
-                s->service = session_create_login_page;
-                s->service(s);
+                printf("State 3E5A\r\n");
+                s->precondition = 0;
+                s->stage = CONN_STAGE_LOGOUT;
+
+                //s->service = session_create_login_page;
+                //s->service(s);
+                return 0;
             }
         }
     }
     
-    return 0;
+    return -1;
 }
 
 
@@ -507,7 +546,6 @@ clientThread(void *arg)
 {
     int ret;
     int socketID = *((int *)arg);
-    
     int ret_size;
 
     /** Create a connection session */
@@ -519,7 +557,9 @@ clientThread(void *arg)
     }
 
     /** Set session state as web-socket auth */
-    session->service = session_connection;
+    session->service = stage_connection;
+
+    session->stage = CONN_STAGE_WS; /** !!! HTTP */
 
     printf("Running Session ID %d - Socket ID %d \r\n", session->id, session->socket_id);
 
@@ -534,7 +574,19 @@ clientThread(void *arg)
         if(ret_size > 0)
         {
             session->data_len = ret_size;
-            session->service(session);
+
+            //if(CONN_STAGE_WS == session->stage)
+            //{
+                session_service_fn_t service = get_service(session->stage);
+                if(NULL != service)
+                {
+                    service(session);
+                }
+            //}
+            //else if (CONN_STAGE_LOGOUT == session->stage) 
+            //{
+            //    session_service_fn_t service = get_service(CONN_STAGE_WS);
+            //}
         }
         else if (ret_size == 0) 
         {
@@ -624,6 +676,12 @@ server_start(void)
 int 
 main(void)
 {
+    service_map_clear();
+
+    (void)set_service(stage_connection, CONN_STAGE_WS);
+    (void)set_service(stage_logout, CONN_STAGE_LOGOUT);
+    
+   
     server_start();
     return 0;
 }
