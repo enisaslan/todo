@@ -106,137 +106,12 @@ typedef struct session_t
     int data_len;
     user_t *user;
     session_service_fn_t service;
-
+    uint32_t token;
     int stage;
     int precondition;
 
 }session_t;
 
-int 
-session_validate_login(void* session)
-{
-    session_t* s = (session_t*)(session);
-    cJSON *root;
-    cJSON *email;
-    cJSON *pass;
-    cJSON *type;
-    int itype;
-    int state;
-    user_t *user = NULL;
-    int ret;
-
-    printf("session_validate_login !\n");
-
-    char login_data[128];
-    if(s->data_len < 128)
-    {
-        memset(login_data, 0, 128);
-        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
-
-        root = cJSON_Parse(login_data);
-        if (root == NULL) 
-        {
-            printf("JSON parse ERROR!\n");
-            return 1;
-        }
-
-        type = cJSON_GetObjectItemCaseSensitive(root, "type");
-        if(NULL == type)
-        {
-            return -1;
-        }
-
-        if(cJSON_IsString(type) && type->valuestring != NULL) 
-        {
-            state = strcmp(type->valuestring, "data\0");
-            if(state == 0)
-            {
-                printf("Login Data Received\r\n");
-                itype = 1;
-            }
-            else
-            {
-                state = strcmp(type->valuestring, "ack\0");
-                if(0 == state)
-                {
-                    itype = 2;
-                }
-                else 
-                {
-                    printf("Unknown Data Type\r\n");
-                    return -1;
-                }
-            }
-        }
-        else 
-        {
-            printf("Unknown Data Type\r\n");
-            return -1;
-        }
-
-        if(1 == itype) // login data 
-        {
-            email = cJSON_GetObjectItemCaseSensitive(root, "email");
-            pass = cJSON_GetObjectItemCaseSensitive(root, "password");
-
-            if (cJSON_IsString(email) && email->valuestring != NULL) 
-            {
-                if (cJSON_IsString(pass) && pass->valuestring != NULL) 
-                {
-                    user = find_user(email->valuestring, pass->valuestring);
-                }
-            }
-
-            if(NULL != user)
-            {
-                // update the session with the user;
-                s->user = user;
-             
-                // test data create
-                create_mock_todo(user->todo_list);
-
-                printf("User Name: %s %s - Mail: %s\r\n", user->name, user->last_name, user->email);
-                
-                user->state = 2;
-
-                int active_todo_cnt = get_active_todo_count(user->todo_list);
-                int completed_todo_cnt = get_completed_todo_count(user->todo_list);
-                cJSON *ok_root = cJSON_CreateObject();
-
-                // Alan ekle
-                cJSON_AddStringToObject(ok_root, "state", "login_ok");
-                cJSON_AddStringToObject(ok_root, "name", user->name);
-                cJSON_AddStringToObject(ok_root, "last_name", user->last_name);
-                cJSON_AddNumberToObject(ok_root, "active_count", active_todo_cnt);
-                cJSON_AddNumberToObject(ok_root, "completed_count", completed_todo_cnt);
-
-                char *json_str = cJSON_PrintUnformatted(ok_root);
-                
-                ret = ws_send_message(s->socket_id, json_str, strlen(json_str));
-                if(ret > 0)
-                {
-                    printf("Total %d Bytes WS data sended...\r\n", ret);
-                }
-
-                cJSON_Delete(ok_root);
-                free(json_str);
-            }
-            else 
-            {
-                printf("Please Check the your login info !!!\r\n");
-            }
-        }
-        else if(2 == itype) 
-        {
-            printf("Ack Received -> Service changed to data_exchange \r\n");
-            s->service = data_exchange;
-        }
-
-        cJSON_Delete(root);
-    }
-
-    return 0;
-}
 
 int send_todo_list(session_t* s)
 {
@@ -248,8 +123,7 @@ int send_todo_list(session_t* s)
     cJSON *todo_list = cJSON_AddArrayToObject(root, "todo_list");
 
     // Alan ekle
-    cJSON_AddStringToObject(root, "type", "data");
-    cJSON_AddNumberToObject(root, "response", 101);
+    cJSON_AddNumberToObject(root, "protocol", 10);
     cJSON_AddNumberToObject(root, "todo_count", todo_count);
 
     for(i = 0; i < MAX_TODO_COUNT; i++)
@@ -278,163 +152,196 @@ int send_todo_list(session_t* s)
     return 0;
 }
 
-int execute_request(session_t* s, int req_id)
-{
-    if(req_id == 101) // get todo list
-    {
-        send_todo_list(s);        
-    }
 
-    return 0;
-}
-
-int data_exchange(void *session)
+int login_check(void* session)
 {
     session_t* s = (session_t*)(session);
     cJSON *root;
-    cJSON *type;
-    cJSON *req;
-    int itype = 3;
-    int state;
+    cJSON *email;
+    cJSON *pass;
     user_t *user = NULL;
     int ret;
 
-    char x_data[4096];
-    if(s->data_len < 4096)
-    {
-        memset(x_data, 0, 4096);
-        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)x_data);
-        root = cJSON_Parse(x_data);
-        if (root == NULL) 
-        {
-            printf("JSON parse ERROR!\n");
-            return 1;
-        }
+    char login_data[256];
 
-        type = cJSON_GetObjectItemCaseSensitive(root, "type");
-        if(NULL == type)
-        {
-            itype = 0;
-        }
-
-        if(cJSON_IsString(type) && type->valuestring != NULL && itype != 0) 
-        {
-            state = strcmp(type->valuestring, "data\0");
-            if(0 == state)
-            {
-                itype = 1;
-            }
-            else
-            {
-                state = strcmp(type->valuestring, "ack\0");
-                if(0 == state)
-                {
-                    itype = 2;
-                }
-                else 
-                {
-                    printf("Unknown Data Type\r\n");
-                    itype = 0;
-                }
-            }
-        }
-        else 
-        {
-            printf("Unknown Data Type\r\n");
-            itype = 0;
-        }
-
-        if(itype == 1) // data
-        {
-            printf("Data received \r\n");
-            req = cJSON_GetObjectItemCaseSensitive(root, "request");
-            if(NULL != type)
-            {
-                if(cJSON_IsNumber(req))
-                {
-                    execute_request(s, req->valueint);
-                }
-            }
-            else 
-            {
-                itype = 0;
-            }
-        }
-        else if(itype == 2) // ack 
-        {
-            printf("ACK data received \r\n");
-        }
-
-        cJSON_Delete(root);
-    }
-    else 
-    {
-        printf("Invalid Data Size %d \r\n", s->data_len);
-    }
-
-
-    return 0;
-}
-
-int session_create_login_page_ack(void* session)
-{
-    session_t* s = (session_t*)(session);
-    const char* w_ack = {"{\"lpc\":\"ack\"}\0"};
-    char lpc_ack[20];
-    int ret;
-
-    printf("Session in LOGIN Page ACK Wait State ... Data Len %d \r\n", s->data_len);
-
-    if(s->data_len < 20)
-    {
-        memset(lpc_ack, 0, 20);
-        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)lpc_ack);
-
-        printf("LPC ACK data: %s \r\n", lpc_ack);
-
-        ret = strcmp((const char *)lpc_ack, w_ack);
-        if(0 == ret)
-        {
-            printf(" LPC ACK OK => %s \r\n", lpc_ack);
-            s->service = session_validate_login;
-        }
-    }
-
-    return 0;
-}
-
-int 
-session_create_login_page(void* session)
-{
-    session_t* s = (session_t*)(session);
-    int ret;
-
-    printf("Session in Create Login page ... \r\n");
-
-    /** Send login page create command */
-    const char *msg = "{\r\n\"state\":\"login\"\r\n}";
-    int msg_len = strlen(msg);
-    ret = ws_send_message(s->socket_id, msg, msg_len);
-    if(ret > 0)
-    {
-        printf("Total %d Bytes WS data sended...\r\n", ret);
-    }
-
-    s->service = session_create_login_page_ack;
-
-    return 0;
-}
-
-int stage_logout(void* session)
-{
-    session_t* s = (session_t*)(session);
+    printf("Stage: A332  \r\n");
 
     if(CONN_STAGE_LOGOUT != s->stage)
     {
         return -1;
     }
 
-    session_validate_login(session);
+    if(s->data_len < 256)
+    {
+        memset(login_data, 0, 256);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
+
+        root = cJSON_Parse(login_data);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR 4C3FF56 !\n");
+            return 1;
+        }
+
+        email = cJSON_GetObjectItemCaseSensitive(root, "email");
+        pass = cJSON_GetObjectItemCaseSensitive(root, "password");
+
+        if ((cJSON_IsString(email) && email->valuestring != NULL) &&  
+            (cJSON_IsString(pass) && pass->valuestring != NULL))
+        {
+                user = find_user(email->valuestring, pass->valuestring);
+            
+        }
+
+        if(NULL != user)
+        {
+            // update the session with the user;
+            s->user = user;
+            void* token_addr = s;
+            uint32_t token = (uint32_t)((uint32_t*)token_addr);
+            s->token = token;
+
+            // test data create
+            create_mock_todo(user->todo_list);
+
+            printf("User Name: %s %s - Mail: %s - Token: 0x%08X\r\n", user->name, user->last_name, user->email, token);
+            
+            user->state = 2;
+
+            cJSON *ok_root = cJSON_CreateObject();
+
+            // Alan ekle
+            cJSON_AddNumberToObject(ok_root, "protocol", 4);
+            cJSON_AddStringToObject(ok_root, "name", user->name);
+            cJSON_AddStringToObject(ok_root, "last_name", user->last_name);
+            cJSON_AddNumberToObject(ok_root, "token", token);
+
+            char *json_str = cJSON_PrintUnformatted(ok_root);
+            
+            ret = ws_send_message(s->socket_id, json_str, strlen(json_str));
+            if(ret > 0)
+            {
+                printf("Total %d Bytes WS data sended...\r\n", ret);
+            }
+
+            cJSON_Delete(ok_root);
+            free(json_str);
+
+            s->stage = CONN_STAGE_LOGIN;
+        }
+        else 
+        {
+            printf("Please Check the your login info !!!\r\n");
+        }
+        
+        cJSON_Delete(root);
+    }
+
+}
+
+int get_todo_list(void* session)
+{
+    char data_buffer[256];
+    session_t* s = (session_t*)(session);
+    cJSON* root;
+    cJSON* token;
+
+    if(s->data_len < 256)
+    {
+        memset(data_buffer, 0, 256);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)data_buffer);
+
+        root = cJSON_Parse(data_buffer);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR 4C3FF56 !\n");
+            return 1;
+        }
+
+        token = cJSON_GetObjectItemCaseSensitive(root, "token");
+        if((NULL != token) && (s->token == token->valueint))
+        {
+            send_todo_list(s);
+        }
+    }
+
+    cJSON_Delete(root);
+    
+    return 0;
+}
+
+
+int delete_todo(void* session)
+{
+    session_t* s = (session_t*)(session);
+
+    return 0;
+}
+
+int new_todo(void* session)
+{
+    session_t* s = (session_t*)(session);
+
+    return 0;
+}
+
+int edit_todo(void* session)
+{
+    session_t* s = (session_t*)(session);
+
+    return 0;
+}
+
+int get_todo_stats(void* session)
+{
+    session_t* s = (session_t*)(session);
+
+    return 0;
+}
+
+int stage_router(void* session)
+{
+    session_t* s = (session_t*)(session);
+    char login_data[4096];
+    int iproto = -1;
+    cJSON* root;
+    cJSON* protocol;
+
+    if(s->data_len < 4096)
+    {
+        memset(login_data, 0, 4096);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)login_data);
+
+        printf("3FC3 %s\n", login_data);
+
+        root = cJSON_Parse(login_data);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR!\n");
+            return 1;
+        }
+
+        protocol = cJSON_GetObjectItemCaseSensitive(root, "protocol");
+        if(NULL == protocol)
+        {
+            printf("State FF3C \r\n");
+            cJSON_Delete(root);
+            return -1;
+        }
+
+        if(cJSON_IsNumber(protocol))
+        {
+            iproto = protocol->valueint;
+
+            session_service_fn_t service = get_service(iproto);
+            if(NULL != service)
+            {
+                service(session);
+            }
+        }
+    }
+
+    cJSON_Delete(root);
 
     return 0;
 }
@@ -676,9 +583,15 @@ main(void)
     service_map_clear();
 
     (void)set_service(stage_connection, CONN_STAGE_WS);
-    (void)set_service(stage_logout, CONN_STAGE_LOGOUT);
-    
-   
+    (void)set_service(stage_router, CONN_STAGE_LOGOUT);
+    (void)set_service(stage_router, CONN_STAGE_LOGIN);
+    (void)set_service(login_check, 4);
+    (void)set_service(get_todo_list, 10);
+    (void)set_service(delete_todo, 11);
+    (void)set_service(new_todo, 12);
+    (void)set_service(edit_todo, 13);
+    (void)set_service(get_todo_stats, 14);
+
     server_start();
     return 0;
 }

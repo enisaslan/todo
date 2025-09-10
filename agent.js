@@ -12,7 +12,7 @@ function send_btn_cb(socket)
     if(ei.value && pi.value)
     {
         let login_data = {
-            type:"data",
+            protocol:4,
             email:ei.value,
             password:pi.value,
         };
@@ -102,11 +102,12 @@ function delete_todo_cb(socket_id, btn_id)
     socket_id.send(JSON.stringify(todo_deleted_cmd));
 }
 
-
+/*
 function blockSleep(ms) {
   const end = Date.now() + ms;
   while (Date.now() < end) {}
 }
+*/
 
 function create_main_page(socket_id, data_obj)
 {
@@ -149,22 +150,11 @@ function create_main_page(socket_id, data_obj)
     container.appendChild(header_div);
     container.appendChild(body_div);
 
-    let main_page_ack = {
-        type:"ack",
-        state:"main_page_created",
-    };
-
-    console.log("ack sended");
-
-    socket_id.send(JSON.stringify(main_page_ack));
-
-blockSleep(10);
-
-    console.log("todo list req sended");
+    console.log("todo list req sended - token ", data_obj.token);
 
     let get_todo_list_req = {
-        type:"data",
-        request:101, //get todo list
+        protocol:10, //get todo list
+        token:data_obj.token 
     };
 
     socket_id.send(JSON.stringify(get_todo_list_req));
@@ -230,11 +220,11 @@ function create_websocket ()
     socket.onmessage = (event) => {
         const obj = JSON.parse(event.data);
 
-        if(obj.state == "login_ok")
+        if(obj.protocol == 4)
         {
             create_main_page(socket, obj); 
         }
-        else if(obj.type == "data" && obj.response == 101)
+        else if(obj.protocol == 10)
         {
             create_todo_list(socket, obj); 
         }
