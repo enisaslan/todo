@@ -480,9 +480,6 @@ int stage_connection(void* session)
                 printf("State 3E5A\r\n");
                 s->precondition = 0;
                 s->stage = CONN_STAGE_LOGOUT;
-
-                //s->service = session_create_login_page;
-                //s->service(s);
                 return 0;
             }
         }

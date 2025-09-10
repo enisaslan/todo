@@ -34,28 +34,52 @@ function create_login_page(socket)
     const ei = document.createElement("input");
     ei.type = "text";
     ei.id = "ei-line-edit";
-    ei.style.marginRight = "5px";
+    ei.style.margin = "5px";
+    ei.style.maxWidth = "150px";
 
     // password input line edit
     const pi = document.createElement("input");
     pi.type = "password";
     pi.id = "pi-line-edit";
-    pi.style.marginRight = "5px";
+    pi.style.margin = "5px";
+    pi.style.maxWidth = "150px";
 
 
     // submit button 
     const sb = document.createElement("button");
     sb.innerText = "Send";
     sb.id = "sb-button";
-    sb.style.marginRight = "5px";
+    sb.style.margin = "5px";
+    sb.style.maxWidth = "100px";
     sb.addEventListener("click", function (event){
         send_btn_cb(socket);
     });
 
+    const m_div = document.createElement("div");
+
+
     // add to main container
-    container.appendChild(ei);
-    container.appendChild(pi);
-    container.appendChild(sb);
+    m_div.appendChild(ei);
+    m_div.appendChild(pi);
+    m_div.appendChild(sb);
+
+    m_div.style.display = "flex";
+    m_div.style.flexDirection = "column";
+    m_div.style.width = "180px";
+    m_div.style.height = "130px";
+    m_div.style.border = "solid 1px";
+    m_div.style.backgroundColor = "#d0d3d4ff";
+    m_div.style.alignItems = "center";
+    m_div.style.justifyContent = "center";
+    m_div.style.borderRadius = "5px";
+
+    container.style.display = "flex";
+    container.style.justifyContent = "center";
+    container.style.alignItems = "center";
+    container.style.height = "100vh";
+    
+
+    container.appendChild(m_div);
 }
 
 function create_new_todo_cb(socket_id)
@@ -88,6 +112,7 @@ function create_main_page(socket_id, data_obj)
 {
     const container = document.getElementById("container");
     container.innerHTML = "";
+    container.style.cssText = "";
 
     const header_div = document.createElement("div");
     header_div.id = "header-div";
