@@ -1,4 +1,4 @@
-
+let g_token = "";
 let server_address = "ws://localhost:8081"
 
 // sen button event container 
@@ -36,6 +36,7 @@ function create_login_page(socket)
     ei.id = "ei-line-edit";
     ei.style.margin = "5px";
     ei.style.maxWidth = "150px";
+    ei.value = "enis.aslan";
 
     // password input line edit
     const pi = document.createElement("input");
@@ -43,6 +44,7 @@ function create_login_page(socket)
     pi.id = "pi-line-edit";
     pi.style.margin = "5px";
     pi.style.maxWidth = "150px";
+    pi.value = "ee12aa34"
 
 
     // submit button 
@@ -92,9 +94,10 @@ function delete_todo_cb(socket_id, btn_id)
     console.log("Todo Delete Button " + btn_id + " Clicked !!!");
 
     let todo_deleted_cmd = {
-        type:"data",
-        cmd:200, // delete
+        protocol:11,
+        token:g_token,
         todo_id:btn_id,
+
     };
 
     console.log("Todo " + btn_id + " Delete Command Sended !!");
@@ -152,6 +155,8 @@ function create_main_page(socket_id, data_obj)
 
     console.log("todo list req sended - token ", data_obj.token);
 
+    g_token = data_obj.token;
+
     let get_todo_list_req = {
         protocol:10, //get todo list
         token:data_obj.token 
@@ -164,6 +169,7 @@ function create_todo_list(socket_id, obj)
 {
     const body_div = document.getElementById("body-div");
     body_div.innerHTML = "";
+
     body_div.style.display = "flex";
     body_div.style.flexDirection = "column";
     body_div.style.gap = "10px";
@@ -224,9 +230,14 @@ function create_websocket ()
         {
             create_main_page(socket, obj); 
         }
-        else if(obj.protocol == 10)
+        else if(obj.protocol == 10) // get todo list response
         {
             create_todo_list(socket, obj); 
+        }
+        else if(obj.protocol == 11) // todo delete response
+        {
+            let get_todo_list_req = { protocol:10, token:g_token }; //get todo list
+            socket.send(JSON.stringify(get_todo_list_req));
         }
         else
         {

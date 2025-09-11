@@ -1,5 +1,6 @@
 #include "todo.h"
 #include "string.h"
+#include "stdio.h"
 
 int 
 get_todo_count(todo_t *todo_list)
@@ -72,7 +73,6 @@ create_new_todo(todo_t *todo_list,
         return -2;
     }
 
-
     if(details_length > MAX_TODO_DETAIL_LENGTH)
     {
         return -3;
@@ -86,6 +86,7 @@ create_new_todo(todo_t *todo_list,
             if(todo->state == TODO_FREE)
             {
                 todo->state = TODO_ACTIVE;
+                todo->id = i;
                 strncpy(todo->summary, summary, MAX_TODO_SUMMARY_LENGTH);
                 strncpy(todo->details, details, MAX_TODO_DETAIL_LENGTH);
                 return 0;
@@ -102,4 +103,23 @@ create_mock_todo(todo_t *todo_list)
 {
     create_new_todo(todo_list, "C Source Code Parsing\0", "Split the C source code to other related source files.\0");
     create_new_todo(todo_list, "Modal Form Create\0", "Research the modal creation techniques with the JS.\0");
+}
+
+
+int delete_todo_by_id(todo_t *todo_list, int id)
+{
+    int i;
+    todo_t* todo;
+    for(i = 0; i < MAX_TODO_COUNT; i++)
+    {
+        todo = &todo_list[i];
+        if((todo->state != TODO_FREE) && (todo->id == id))
+        {
+            todo->state = TODO_FREE; 
+            printf(" > Todo %d deleted \r\n", i);
+            return 0;
+        }
+    }
+
+    return -1;
 }

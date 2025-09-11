@@ -122,6 +122,8 @@ int send_todo_list(session_t* s)
     cJSON *root = cJSON_CreateObject();
     cJSON *todo_list = cJSON_AddArrayToObject(root, "todo_list");
 
+    printf("Send Todo List K780C !\r\n");
+
     // Alan ekle
     cJSON_AddNumberToObject(root, "protocol", 10);
     cJSON_AddNumberToObject(root, "todo_count", todo_count);
@@ -197,8 +199,7 @@ int login_check(void* session)
         {
             // update the session with the user;
             s->user = user;
-            void* token_addr = s;
-            uint32_t token = (uint32_t)((uint32_t*)token_addr);
+            uint32_t token = (uint32_t)(s->socket_id * 1000);
             s->token = token;
 
             // test data create
@@ -258,10 +259,16 @@ int get_todo_list(void* session)
             return 1;
         }
 
+        printf("Get Todo List K789C !\n");
+
+
         token = cJSON_GetObjectItemCaseSensitive(root, "token");
         if((NULL != token) && (s->token == token->valueint))
         {
             send_todo_list(s);
+        }
+        else {
+            printf("Token FAIL !!! s.token:0x%08X - rx.token:0x%08X\r\n", s->token, token->valueint);
         }
     }
 
@@ -274,6 +281,49 @@ int get_todo_list(void* session)
 int delete_todo(void* session)
 {
     session_t* s = (session_t*)(session);
+    char data_buffer[64];
+    cJSON* root;
+    cJSON* todo_id;
+    int ret; 
+
+    printf(" Delete Service Running\r\n");
+
+    if(s->data_len < 64)
+    {
+        memset(data_buffer, 0, 64);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)data_buffer);
+
+        root = cJSON_Parse(data_buffer);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR 4C3FF56 !\n");
+            return 1;
+        }
+
+        todo_id = cJSON_GetObjectItemCaseSensitive(root, "todo_id");
+        if((NULL != todo_id) && (cJSON_IsNumber(todo_id)))
+        {
+            ret = delete_todo_by_id(s->user->todo_list, todo_id->valueint);
+
+            cJSON *ok_root = cJSON_CreateObject();
+
+            // Alan ekle
+            cJSON_AddNumberToObject(ok_root, "protocol", 11);
+            cJSON_AddNumberToObject(ok_root, "error", ret);
+
+            char *json_str = cJSON_PrintUnformatted(ok_root);
+                
+            ret = ws_send_message(s->socket_id, json_str, strlen(json_str));
+            if(ret > 0)
+            {
+                printf("Total %d Bytes Todo Ack data sended...\r\n", ret);
+            }
+
+            cJSON_Delete(ok_root);
+            free(json_str);
+        }
+    }
+
 
     return 0;
 }

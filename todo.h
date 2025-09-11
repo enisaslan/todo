@@ -20,10 +20,12 @@ typedef struct todo_t
     char summary[MAX_TODO_SUMMARY_LENGTH];
     char details[MAX_TODO_DETAIL_LENGTH];
     toto_state_t state;
+    int id;
 }todo_t;
 
 int create_new_todo(todo_t *todo_list, char* summary, char* details);
 int get_todo_count(todo_t *todo_list);
+int delete_todo_by_id(todo_t *todo_list, int id);
 int get_completed_todo_count(todo_t *todo_list);
 int get_active_todo_count(todo_t *todo_list); 
 
