@@ -119,8 +119,10 @@ int send_todo_list(session_t* s)
     todo_t *todo;
     int i = 0;
     int todo_count = get_todo_count(s->user->todo_list);
+
     cJSON *root = cJSON_CreateObject();
-    cJSON *todo_list = cJSON_AddArrayToObject(root, "todo_list");
+    cJSON *todo_list = cJSON_CreateArray();
+
 
     printf("Send Todo List K780C !\r\n");
 
@@ -134,11 +136,17 @@ int send_todo_list(session_t* s)
 
         if(todo->state != TODO_FREE)
         {
-            cJSON_AddItemToArray(todo_list, cJSON_CreateNumber(todo->state));
-            cJSON_AddItemToArray(todo_list, cJSON_CreateString(todo->summary));
-            cJSON_AddItemToArray(todo_list, cJSON_CreateString(todo->details));
+            cJSON *todo_x = cJSON_CreateObject();
+            cJSON_AddNumberToObject(todo_x, "id", todo->id);
+            cJSON_AddNumberToObject(todo_x, "state", todo->state);
+            cJSON_AddStringToObject(todo_x, "summary", todo->summary);
+            cJSON_AddStringToObject(todo_x, "details", todo->details);
+            
+            cJSON_AddItemToArray(todo_list, todo_x);
         }
     }
+
+    cJSON_AddItemToObject(root, "todo_list", todo_list);
 
     char *json_str = cJSON_PrintUnformatted(root);
     

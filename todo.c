@@ -101,8 +101,15 @@ create_new_todo(todo_t *todo_list,
 void 
 create_mock_todo(todo_t *todo_list)
 {
-    create_new_todo(todo_list, "C Source Code Parsing\0", "Split the C source code to other related source files.\0");
-    create_new_todo(todo_list, "Modal Form Create\0", "Research the modal creation techniques with the JS.\0");
+    int todo_count = get_todo_count(todo_list);
+    if(0 == todo_count)
+    {
+        create_new_todo(todo_list, "Code Refactor\0", "C and JS source will be refactor.\0");
+        create_new_todo(todo_list, "New Todo Form Create\0", "New todo form create that likes a modal form.\0");
+        create_new_todo(todo_list, "Edit Form Create\0", "Edit todo form create that likes a modal form\0");
+        create_new_todo(todo_list, "Create New User\0", "New User Form Create\0");
+        create_new_todo(todo_list, "Password Reset System\0", "Password Reset System & Form Create\0");
+    }
 }
 
 

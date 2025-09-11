@@ -36,6 +36,7 @@ function create_login_page(socket)
     ei.id = "ei-line-edit";
     ei.style.margin = "5px";
     ei.style.maxWidth = "150px";
+    ei.style.height = "20px"
     ei.value = "enis.aslan";
 
     // password input line edit
@@ -43,15 +44,17 @@ function create_login_page(socket)
     pi.type = "password";
     pi.id = "pi-line-edit";
     pi.style.margin = "5px";
+    pi.style.height = "20px"
     pi.style.maxWidth = "150px";
     pi.value = "ee12aa34"
-
 
     // submit button 
     const sb = document.createElement("button");
     sb.innerText = "Send";
     sb.id = "sb-button";
     sb.style.margin = "5px";
+    sb.style.height = "25px"
+    sb.style.width = "100px"
     sb.style.maxWidth = "100px";
     sb.addEventListener("click", function (event){
         send_btn_cb(socket);
@@ -70,7 +73,7 @@ function create_login_page(socket)
     m_div.style.width = "180px";
     m_div.style.height = "130px";
     m_div.style.border = "solid 1px";
-    m_div.style.backgroundColor = "#d0d3d4ff";
+    m_div.style.backgroundColor = "#479cceff";
     m_div.style.alignItems = "center";
     m_div.style.justifyContent = "center";
     m_div.style.borderRadius = "5px";
@@ -91,13 +94,11 @@ function create_new_todo_cb(socket_id)
 
 function delete_todo_cb(socket_id, btn_id)
 {
-    console.log("Todo Delete Button " + btn_id + " Clicked !!!");
 
     let todo_deleted_cmd = {
         protocol:11,
         token:g_token,
         todo_id:btn_id,
-
     };
 
     console.log("Todo " + btn_id + " Delete Command Sended !!");
@@ -123,13 +124,16 @@ function create_main_page(socket_id, data_obj)
     const body_div = document.createElement("div");
     body_div.id = "body-div";
 
-    header_div.style.backgroundColor = "#6bc1f3ff";
-    header_div.style.padding = "3px";
+    header_div.style.backgroundColor = "#479cceff";
+    header_div.style.padding = "10px";
     header_div.style.borderRadius = "3px";
+    header_div.style.display = "flex";
+    header_div.style.justifyContent = "space-between";
 
     const user_a = document.createElement("a");
     user_a.innerHTML = data_obj.name + " " + data_obj.last_name;
-    user_a.style.marginRight = "10px";
+    user_a.style.color = "white";
+    user_a.style.fontWeight = "bold";
 
     const new_todo = document.createElement("button");
     new_todo.innerText = "New Todo";
@@ -139,15 +143,7 @@ function create_main_page(socket_id, data_obj)
         create_new_todo_cb(socket_id);
     });
 
-    const total_todo = document.createElement("a");
-    total_todo.innerHTML = "| Active ToDo Count: " + 
-                    data_obj.active_count + 
-                    " | Completed ToDo Count: " + 
-                    data_obj.completed_count + " | ";
-    total_todo.style.marginRight = "10px";
-
     header_div.appendChild(user_a);
-    header_div.appendChild(total_todo);
     header_div.appendChild(new_todo);
 
     container.appendChild(header_div);
@@ -174,38 +170,47 @@ function create_todo_list(socket_id, obj)
     body_div.style.flexDirection = "column";
     body_div.style.gap = "10px";
     body_div.style.marginTop = "10px";
-    body_div.style.backgroundColor = "#d0d3d4ff";
-    body_div.style.padding = "3px";
+    body_div.style.backgroundColor = "#479cceff";
+    body_div.style.padding = "10px";
     body_div.style.borderRadius = "3px";
 
-    const mlength  = obj.todo_list.length / 3;
-    console.log("length:" + mlength);
 
-    for (let i = 0; i<mlength; i++) 
+    console.log("length:" + obj.todo_count);
+
+    let todo_count = obj.todo_count;
+
+    if(typeof todo_count === "number")
     {
-        const xdiv = document.createElement("div");
-        xdiv.style.backgroundColor = "#abc1d8ff"
-        xdiv.style.margin = "3px";
-        xdiv.style.padding = "3px";
-        xdiv.style.borderRadius = "3px";
-        xdiv.style.display = "flex";
-        xdiv.style.justifyContent = "space-between";
+        for(let i = 0; i < todo_count; i++)
+        {
+            const x_div = document.createElement("div");
+            x_div.style.backgroundColor = "#dbebfcff"
+            x_div.style.margin = "3px";
+            x_div.style.padding = "5px";
+            x_div.style.borderRadius = "3px";
+            x_div.style.display = "flex";
+            x_div.style.justifyContent = "space-between";
 
-        const adata = document.createElement("a");
-        adata.innerHTML = obj.todo_list[(i*3) + 1] + " - " + obj.todo_list[(i*3) + 2] ;
-        xdiv.appendChild(adata);
+            const a_tag = document.createElement("a");
+            a_tag.innerHTML = obj.todo_list[i].id + ") <" +
+                                obj.todo_list[i].state + ">   " +
+                                obj.todo_list[i].summary + ":  " +
+                                obj.todo_list[i].details;
+            x_div.appendChild(a_tag);
 
-        const delete_btn = document.createElement("button");
-        delete_btn.innerText = "Delete";
-        delete_btn.id = "delete-button-" + i;
-        delete_btn.addEventListener("click", function (event, id){
-            delete_todo_cb(socket_id, i);
-        });
+            const delete_btn = document.createElement("button");
+            delete_btn.innerText = "Delete";
+            delete_btn.id = "delete-button-" + obj.todo_list[i].id;
+            delete_btn.addEventListener("click", function (event, id){
+                delete_todo_cb(socket_id, obj.todo_list[i].id);
+            });
 
-        xdiv.appendChild(delete_btn);
+            x_div.appendChild(delete_btn);
 
-        body_div.appendChild(xdiv);
+            body_div.appendChild(x_div);
+        }
     }
+
 }
 
 function create_websocket ()
