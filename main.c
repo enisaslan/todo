@@ -339,6 +339,51 @@ int delete_todo(void* session)
 int new_todo(void* session)
 {
     session_t* s = (session_t*)(session);
+    char data_buffer[4096];
+    cJSON* root;
+    cJSON* summary;
+    cJSON* details;
+    int ret; 
+
+    printf(" New Todo Service Running\r\n");
+
+    if(s->data_len < 4096)
+    {
+        memset(data_buffer, 0, 4096);
+        ws_decode_frame((uint8_t*)s->buffer, s->data_len, (uint8_t*)data_buffer);
+
+        root = cJSON_Parse(data_buffer);
+        if (root == NULL) 
+        {
+            printf("JSON parse ERROR 4C3FF56 !\n");
+            return 1;
+        }
+
+        summary = cJSON_GetObjectItemCaseSensitive(root, "summary");
+        details = cJSON_GetObjectItemCaseSensitive(root, "details");
+        if(((NULL != summary) && (cJSON_IsString(summary))) && 
+            ((NULL != details) && (cJSON_IsString(details))))
+        {
+            ret = create_new_todo(s->user->todo_list, summary->valuestring, details->valuestring);
+
+            cJSON *ok_root = cJSON_CreateObject();
+
+            // Alan ekle
+            cJSON_AddNumberToObject(ok_root, "protocol", 12);
+            cJSON_AddNumberToObject(ok_root, "error", ret);
+
+            char *json_str = cJSON_PrintUnformatted(ok_root);
+                
+            ret = ws_send_message(s->socket_id, json_str, strlen(json_str));
+            if(ret > 0)
+            {
+                printf("Total %d Bytes Todo Ack data sended...\r\n", ret);
+            }
+
+            cJSON_Delete(ok_root);
+            free(json_str);
+        }
+    }
 
     return 0;
 }

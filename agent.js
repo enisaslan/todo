@@ -89,7 +89,27 @@ function create_login_page(socket)
 
 function create_new_todo_send_cb(socket)
 {
-    console.log("send button clicked !!");
+
+    const t_title = document.getElementById("todoTitle");
+    const t_details = document.getElementById("todoDetails");
+
+    if((t_details.value) && (t_title.value))
+    {
+        let new_todo_data = {
+            protocol:12, // new todo
+            token:g_token,
+            summary:t_title.value,
+            details:t_details.value
+        };
+
+        socket.send(JSON.stringify(new_todo_data));
+    }
+    else
+    {
+        alert("Please insert the your login data !!");
+    }
+    console.log("send button clicked !!" + t_title.value + " - " + t_details.value);
+
 }
 
 
@@ -316,14 +336,19 @@ function create_websocket ()
         {
             create_todo_list(socket, obj); 
         }
-        else if(obj.protocol == 11) // todo delete response
+        else if((obj.protocol == 11) && (obj.error == 0)) // todo delete response
+        {
+            let get_todo_list_req = { protocol:10, token:g_token }; //get todo list
+            socket.send(JSON.stringify(get_todo_list_req));
+        }
+        else if((obj.protocol == 12) && (obj.error == 0))// new todo list response
         {
             let get_todo_list_req = { protocol:10, token:g_token }; //get todo list
             socket.send(JSON.stringify(get_todo_list_req));
         }
         else
         {
-            console.log(" Unknown Data Received ");
+            console.log("< Unknown Data Received > ");
         }
     };
 
