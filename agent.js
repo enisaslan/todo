@@ -1,6 +1,13 @@
 let g_token = "";
 let server_address = "ws://localhost:8081"
 
+function connection_error()
+{
+    const container = document.getElementById("container");
+    container.innerHTML = "<h2 class='connection-error'> WebSocket Connection Not Established !!!</h2>";
+}
+connection_error();
+
 // sen button event container 
 function send_btn_cb(socket)
 {
@@ -360,5 +367,9 @@ function create_websocket ()
 
 // Create the websocket
 create_websocket();
+
+
+
+
 
 
