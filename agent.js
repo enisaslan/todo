@@ -87,9 +87,86 @@ function create_login_page(socket)
     container.appendChild(m_div);
 }
 
+function create_new_todo_send_cb(socket)
+{
+    console.log("send button clicked !!");
+}
+
+
 function create_new_todo_cb(socket_id)
 {
-    console.log("New Todo Create Button Clicked !!!");
+    const modal_is_contain = document.getElementById("newModalForm");
+    if(modal_is_contain)
+    {
+        const t_title = document.getElementById("todoTitle");
+        t_title.value = "";
+
+        const t_details = document.getElementById("todoDetails");
+        t_details.value = "";
+
+        modal_is_contain.style.display = "block";
+    }
+    else
+    {
+        const modal = document.createElement("div");
+        modal.classList.add("modal");
+        modal.id = "newModalForm";
+
+        const modal_content = document.createElement("div");
+        modal_content.classList.add("modal-content");
+
+        const header_text = document.createElement("h3");
+        header_text.innerHTML = "New Todo";
+
+        const summary = document.createElement("input");
+        summary.type = "text";
+        summary.id = "todoTitle";
+        summary.placeholder = "Summary";
+
+        const details = document.createElement("input");
+        details.type = "text";
+        details.id = "todoDetails";
+        details.placeholder = "Details";
+
+        const button_group = document.createElement("div");
+
+        const button_submit = document.createElement("button");
+        button_submit.id = "submitBtn";
+        button_submit.classList.add("btn-submit");
+        button_submit.innerText = "Send";
+
+        const button_close = document.createElement("button");
+        button_close.id = "closeBtn";
+        button_close.classList.add("btn-close");
+        button_close.innerText = "Close";
+        button_close.addEventListener("click", () => {
+        modal.style.display = "none";
+        });
+
+        button_group.appendChild(button_submit);
+        button_group.appendChild(button_close);
+
+        modal_content.appendChild(header_text);
+        modal_content.appendChild(summary);
+        modal_content.appendChild(details);
+        modal_content.appendChild(button_group);
+
+        modal.appendChild(modal_content);
+        modal.style.display = "block";
+
+        window.addEventListener("click", (e) => {
+        if (e.target === modal) {
+            modal.style.display = "none";
+        }
+        });
+
+        button_submit.addEventListener("click", function (event){
+            create_new_todo_send_cb(socket_id);
+        });
+
+        const container = document.getElementById("container");
+        container.appendChild(modal);
+    }
 }
 
 function delete_todo_cb(socket_id, btn_id)
